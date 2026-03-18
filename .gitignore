@@ -1,0 +1,19 @@
+# Ambientes Virtuais
+venv/
+env/
+.env
+
+# Cache do Python e Streamlit
+__pycache__/
+.streamlit/config.toml
+.pytest_cache/
+
+# Arquivos do Sistema Operacional
+.DS_Store
+Thumbs.db
+
+# Notebooks (Opcional: se quiser subir apenas o app final)
+# .ipynb_checkpoints/
+
+# Arquivos de dados pesados ou temporários
+# data/raw/
