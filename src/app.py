@@ -42,7 +42,7 @@ except Exception as e:
     model_loaded = False
 
 # --- INTERFACE ---
-st.title("🧙‍♂️ Inteligência Educacional - Passos Mágicos")
+st.title("Inteligência Educacional - Passos Mágicos")
 
 if model_loaded:
     aba = st.sidebar.radio("Navegação", ["Dashboard Geral", "Simulador de Risco IA"])
