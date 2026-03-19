@@ -7,10 +7,24 @@ import os
 
 st.set_page_config(page_title="Dashboard Passos Mágicos", layout="wide")
 
-if Path("/mount/src/modelo_passos_magicos").exists():
-    ROOT_PATH = Path("/mount/src/modelo_passos_magicos/Projeto_Passos_Magicos")
-else:
-    ROOT_PATH = Path(__file__).resolve().parent.parent
+possible_paths = [
+    Path("/mount/src/modelo_passos_magicos/Projeto_Passos_Magicos"),
+    Path(__file__).resolve().parent.parent,
+    Path.cwd() / "Projeto_Passos_Magicos"
+]
+
+ROOT_PATH = None
+for p in possible_paths:
+    if (p / "data").exists():
+        ROOT_PATH = p
+        break
+
+if ROOT_PATH is None:
+    st.error("❌ Erro Crítico: Pasta de dados não encontrada.")
+    st.info(f"O sistema verificou os seguintes locais: {[str(p) for p in possible_paths]}")
+    if Path("/mount/src/modelo_passos_magicos").exists():
+        st.write("Conteúdo da raiz do projeto:", os.listdir("/mount/src/modelo_passos_magicos/"))
+    st.stop()
 
 MODEL_FILE = ROOT_PATH / "models" / "modelo_risco_rf.pkl"
 FEATURES_FILE = ROOT_PATH / "models" / "features_modelo.pkl"
@@ -31,13 +45,10 @@ try:
     df = load_data()
     model_loaded = True
 except Exception as e:
-    st.error(f"Erro ao localizar arquivos: {e}")
-    st.info(f"O sistema buscou os dados em: {ROOT_PATH}")
-    if ROOT_PATH.parent.exists():
-        st.write("Pastas encontradas na raiz:", os.listdir(ROOT_PATH.parent))
+    st.error(f"Erro ao carregar arquivos específicos: {e}")
     model_loaded = False
 
-st.title("Inteligência Educacional - Passos Mágicos")
+st.title("🧙‍♂️ Inteligência Educacional - Passos Mágicos")
 
 if model_loaded:
     aba = st.sidebar.radio("Navegação", ["Dashboard Geral", "Simulador de Risco IA"])
@@ -69,7 +80,7 @@ if model_loaded:
 
     elif aba == "Simulador de Risco IA":
         st.header("🔮 Simulador de Risco Preventivo")
-        st.write("Preencha os indicadores para prever a probabilidade de defasagem.")
+        st.write("Insira os indicadores para calcular a probabilidade de defasagem.")
         
         with st.form("form_ia"):
             col_a, col_b = st.columns(2)
