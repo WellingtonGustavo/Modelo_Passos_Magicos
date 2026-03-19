@@ -2,26 +2,33 @@ import streamlit as st
 import pandas as pd
 import joblib
 import plotly.express as px
-import os
+from pathlib import Path
 
-st.set_page_config(page_title="Dashboard Passos Mágicos", layout="wide")
+t.set_page_config(page_title="Dashboard Passos Mágicos", layout="wide")
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+MODEL_FILE = BASE_DIR / "models" / "modelo_risco_rf.pkl"
+FEATURES_FILE = BASE_DIR / "models" / "features_modelo.pkl"
+DATA_FILE = BASE_DIR / "data" / "pede_consolidado_limpo.csv" 
 
 @st.cache_resource
 def load_model():
-    model = joblib.load('models/modelo_risco_rf.pkl')
-    features = joblib.load('models/features_modelo.pkl')
+    model = joblib.load(MODEL_FILE)
+    features = joblib.load(FEATURES_FILE)
     return model, features
 
 @st.cache_data
 def load_data():
-    return pd.read_csv('data/processed/pede_final_com_inteligencia.csv')
+    return pd.read_csv(DATA_FILE)
 
 try:
     modelo, features_treino = load_model()
     df = load_data()
     model_loaded = True
 except Exception as e:
-    st.error(f"Erro ao carregar modelo ou dados: {e}")
+    st.error(f"Erro crítico de caminhos: {e}")
+    st.info(f"O sistema tentou buscar em: {BASE_DIR}")
     model_loaded = False
 
 st.title("🧙‍♂️ Inteligência Educacional - Passos Mágicos")
@@ -43,7 +50,12 @@ if model_loaded:
         m1, m2, m3 = st.columns(3)
         m1.metric("Alunos Analisados", len(df_filt))
         m2.metric("Média INDE", round(df_filt['INDE'].mean(), 2))
-        m3.metric("Alunos em Risco (IA)", len(df_filt[df_filt['PROBABILIDADE_RISCO'] > 0.6]))
+        
+        if 'PROBABILIDADE_RISCO' in df_filt.columns:
+            risco_count = len(df_filt[df_filt['PROBABILIDADE_RISCO'] > 0.6])
+        else:
+            risco_count = "N/A"
+        m3.metric("Alunos em Risco (IA)", risco_count)
 
         st.subheader("Evolução do INDE por Pedra")
         fig = px.box(df_filt, x='Pedra', y='INDE', color='Pedra', points="all")
