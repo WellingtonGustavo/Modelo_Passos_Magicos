@@ -6,14 +6,15 @@ from pathlib import Path
 
 st.set_page_config(page_title="Dashboard Passos Mágicos", layout="wide")
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+CURRENT_DIR = Path(__file__).resolve().parent 
+BASE_PROJECT_DIR = CURRENT_DIR.parent 
 
-MODEL_FILE = BASE_DIR / "models" / "modelo_risco_rf.pkl"
-FEATURES_FILE = BASE_DIR / "models" / "features_modelo.pkl"
-DATA_FILE = BASE_DIR / "data" / "pede_consolidado_limpo.csv" 
+MODEL_FILE = BASE_PROJECT_DIR / "models" / "modelo_risco_rf.pkl"
+FEATURES_FILE = BASE_PROJECT_DIR / "models" / "features_modelo.pkl"
+DATA_FILE = BASE_PROJECT_DIR / "data" / "pede_consolidado_limpo.csv" 
 
 @st.cache_resource
-def load_model():
+def load_assets():
     model = joblib.load(MODEL_FILE)
     features = joblib.load(FEATURES_FILE)
     return model, features
@@ -23,12 +24,12 @@ def load_data():
     return pd.read_csv(DATA_FILE)
 
 try:
-    modelo, features_treino = load_model()
+    modelo, features_treino = load_assets()
     df = load_data()
     model_loaded = True
 except Exception as e:
-    st.error(f"Erro crítico de caminhos: {e}")
-    st.info(f"O sistema tentou buscar em: {BASE_DIR}")
+    st.error(f"Erro ao localizar arquivos: {e}")
+    st.info(f"O app buscou nesta pasta: {BASE_PROJECT_DIR}")
     model_loaded = False
 
 st.title("🧙‍♂️ Inteligência Educacional - Passos Mágicos")
@@ -51,10 +52,8 @@ if model_loaded:
         m1.metric("Alunos Analisados", len(df_filt))
         m2.metric("Média INDE", round(df_filt['INDE'].mean(), 2))
         
-        if 'PROBABILIDADE_RISCO' in df_filt.columns:
-            risco_count = len(df_filt[df_filt['PROBABILIDADE_RISCO'] > 0.6])
-        else:
-            risco_count = "N/A"
+        # Métrica de risco baseada no seu modelo
+        risco_count = len(df_filt[df_filt['PROBABILIDADE_RISCO'] > 0.6]) if 'PROBABILIDADE_RISCO' in df_filt.columns else 0
         m3.metric("Alunos em Risco (IA)", risco_count)
 
         st.subheader("Evolução do INDE por Pedra")
@@ -63,8 +62,7 @@ if model_loaded:
 
     elif aba == "Simulador de Risco IA":
         st.header("🔮 Simulador de Risco Preventivo")
-        st.markdown("Insira os dados do aluno para que a IA preveja o risco de queda de desempenho.")
-
+        
         with st.form("form_ia"):
             col_a, col_b = st.columns(2)
             with col_a:
@@ -78,17 +76,13 @@ if model_loaded:
                 pedra_sel = st.selectbox("Pedra Atual", list(pedra_map.keys()))
                 pv_sel = st.selectbox("Já atingiu PV?", ["Sim", "Não"])
 
-            submit = st.form_submit_button("Calcular Risco")
-
-            if submit:
+            if st.form_submit_button("Calcular Risco"):
                 input_data = pd.DataFrame([{
                     'IAA': iaa, 'IEG': ieg, 'IPS': ips, 'IPP': ipp, 
                     'IPV': ipv, 'PEDRA_NUM': pedra_map[pedra_sel], 
                     'PV_BIN': 1 if pv_sel == "Sim" else 0
                 }])
-                
                 input_data = input_data[features_treino]
-                
                 prob = modelo.predict_proba(input_data)[0][1]
                 
                 if prob > 0.6:
