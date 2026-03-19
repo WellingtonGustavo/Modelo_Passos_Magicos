@@ -7,14 +7,17 @@ from pathlib import Path
 # --- CONFIGURAÇÃO DE PÁGINA ---
 st.set_page_config(page_title="Dashboard Passos Mágicos", layout="wide")
 
-# --- CAMINHOS SIMPLIFICADOS (RAIZ) ---
-# Como o app.py agora está na raiz, buscamos as pastas diretamente
-BASE_DIR = Path(__file__).resolve().parent
+# --- AJUSTE DINÂMICO DE CAMINHOS ---
+# 1. Identifica onde este arquivo (app.py) está: /mount/src/modelo_passos_magicos/src/
+# 2. .parent sobe para a pasta 'src'
+# 3. .parent.parent sobe para a raiz do projeto onde estão 'data' e 'models'
+BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Caminhos exatos conforme sua estrutura
 MODEL_FILE = BASE_DIR / "models" / "modelo_risco_rf.pkl"
 FEATURES_FILE = BASE_DIR / "models" / "features_modelo.pkl"
-# Verifique se o CSV está dentro de 'data' ou 'data/raw' conforme sua imagem
-DATA_FILE = BASE_DIR / "data" / "pede_consolidado_limpo.csv" 
+# Atualizado para incluir a subpasta 'processed' que você mencionou
+DATA_FILE = BASE_DIR / "data" / "processed" / "pede_consolidado_limpo.csv"
 
 # --- FUNÇÕES DE CARREGAMENTO ---
 @st.cache_resource
@@ -33,8 +36,9 @@ try:
     df = load_data()
     model_loaded = True
 except Exception as e:
-    st.error(f"Erro ao carregar arquivos da raiz: {e}")
-    st.info(f"O app tentou acessar: {DATA_FILE}")
+    st.error(f"Erro ao carregar arquivos: {e}")
+    # Mostra o caminho exato onde o erro ocorreu para facilitar o ajuste final
+    st.info(f"O sistema tentou buscar em: {DATA_FILE}")
     model_loaded = False
 
 # --- INTERFACE ---
@@ -46,7 +50,6 @@ if model_loaded:
     if aba == "Dashboard Geral":
         st.header("📊 Visão Geral dos Indicadores")
         
-        # Filtros Dinâmicos
         col_f1, col_f2 = st.columns(2)
         with col_f1:
             anos = st.multiselect("Anos Letivos", df['ANO_LETIVO'].unique(), default=df['ANO_LETIVO'].unique())
@@ -55,17 +58,16 @@ if model_loaded:
 
         df_filt = df[(df['ANO_LETIVO'].isin(anos)) & (df['Pedra'].isin(pedras))]
 
-        # Métricas Principais
         m1, m2, m3 = st.columns(3)
         m1.metric("Alunos Analisados", len(df_filt))
         m2.metric("Média INDE", round(df_filt['INDE'].mean(), 2))
         
-        # Métrica de Risco (Caso a coluna exista no seu CSV)
+        # Métrica de risco preventivo
         if 'PROBABILIDADE_RISCO' in df_filt.columns:
-            risco_count = len(df_filt[df_filt['PROBABILIDADE_RISCO'] > 0.6])
-            m3.metric("Alunos em Risco (IA)", risco_count)
+            risco_alto = len(df_filt[df_filt['PROBABILIDADE_RISCO'] > 0.6])
+            m3.metric("Alunos em Risco Alto", risco_alto)
         else:
-            m3.metric("Alunos em Risco (IA)", "N/A")
+            m3.metric("IA Status", "Modelo Carregado")
 
         st.subheader("Distribuição do INDE por Pedra")
         fig = px.box(df_filt, x='Pedra', y='INDE', color='Pedra', points="all")
@@ -93,6 +95,8 @@ if model_loaded:
                     'IPV': ipv, 'PEDRA_NUM': pedra_map[pedra_sel], 
                     'PV_BIN': 1 if pv_sel == "Sim" else 0
                 }])
+                
+                # Garante que as colunas estejam na ordem correta do modelo
                 input_data = input_data[features_treino]
                 prob = modelo.predict_proba(input_data)[0][1]
                 
