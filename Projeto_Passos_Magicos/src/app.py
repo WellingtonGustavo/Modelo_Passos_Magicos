@@ -3,16 +3,17 @@ import pandas as pd
 import joblib
 import plotly.express as px
 from pathlib import Path
-import os
 
 # --- CONFIGURAÇÃO DE PÁGINA ---
 st.set_page_config(page_title="Dashboard Passos Mágicos", layout="wide")
 
-# --- AJUSTE DE CAMINHOS (RELATIVO AO APP.PY) ---
-# O arquivo está em src/app.py. O .parent sobe para src/, o segundo .parent sobe para Projeto_Passos_Magicos/
+# --- AJUSTE DE CAMINHOS ---
+# O arquivo está em src/app.py. 
+# .parent sobe para src/
+# O segundo .parent sobe para Projeto_Passos_Magicos/
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Definição dos caminhos baseada na sua estrutura de pastas
+# Caminhos diretos baseados na sua estrutura de pastas
 MODEL_FILE = BASE_DIR / "models" / "modelo_risco_rf.pkl"
 FEATURES_FILE = BASE_DIR / "models" / "features_modelo.pkl"
 DATA_FILE = BASE_DIR / "data" / "pede_consolidado_limpo.csv"
@@ -20,7 +21,7 @@ DATA_FILE = BASE_DIR / "data" / "pede_consolidado_limpo.csv"
 # --- FUNÇÕES DE CARREGAMENTO ---
 @st.cache_resource
 def load_assets():
-    # Carrega o modelo e a lista de colunas usadas no treino
+    # Carrega o modelo e a lista de colunas (features) do treinamento
     model = joblib.load(MODEL_FILE)
     features = joblib.load(FEATURES_FILE)
     return model, features
@@ -36,10 +37,7 @@ try:
     model_loaded = True
 except Exception as e:
     st.error(f"Erro ao carregar arquivos: {e}")
-    st.info(f"Diretório base identificado: {BASE_DIR}")
-    # Ajuda a entender o que o Streamlit vê no momento do erro
-    if BASE_DIR.exists():
-        st.write("Conteúdo detectado na pasta do projeto:", os.listdir(BASE_DIR))
+    st.info(f"O sistema buscou os dados em: {DATA_FILE}")
     model_loaded = False
 
 # --- INTERFACE ---
@@ -51,7 +49,7 @@ if model_loaded:
     if aba == "Dashboard Geral":
         st.header("📊 Visão Geral dos Indicadores")
         
-        # Filtros baseados no seu CSV
+        # Filtros Dinâmicos baseados nas colunas do seu CSV
         col_f1, col_f2 = st.columns(2)
         with col_f1:
             anos = st.multiselect("Anos Letivos", df['ANO_LETIVO'].unique(), default=df['ANO_LETIVO'].unique())
@@ -60,12 +58,12 @@ if model_loaded:
 
         df_filt = df[(df['ANO_LETIVO'].isin(anos)) & (df['Pedra'].isin(pedras))]
 
-        # Métricas
+        # Cartões de Métricas
         m1, m2, m3 = st.columns(3)
         m1.metric("Alunos Analisados", len(df_filt))
         m2.metric("Média INDE", round(df_filt['INDE'].mean(), 2))
         
-        # Verifica se a coluna de probabilidade existe para mostrar a métrica de risco
+        # Métrica de risco se a coluna existir no DataFrame
         if 'PROBABILIDADE_RISCO' in df_filt.columns:
             risco_count = len(df_filt[df_filt['PROBABILIDADE_RISCO'] > 0.6])
             m3.metric("Alunos em Risco (IA)", risco_count)
@@ -93,14 +91,14 @@ if model_loaded:
                 pv_sel = st.selectbox("Já atingiu PV?", ["Sim", "Não"])
 
             if st.form_submit_button("Calcular Risco"):
-                # Prepara dados para predição
+                # Criação do DataFrame para predição
                 input_data = pd.DataFrame([{
                     'IAA': iaa, 'IEG': ieg, 'IPS': ips, 'IPP': ipp, 
                     'IPV': ipv, 'PEDRA_NUM': pedra_map[pedra_sel], 
                     'PV_BIN': 1 if pv_sel == "Sim" else 0
                 }])
                 
-                # Garante que as colunas estejam na ordem que o modelo exige
+                # Reordena colunas para bater com o modelo treinado
                 input_data = input_data[features_treino]
                 prob = modelo.predict_proba(input_data)[0][1]
                 
