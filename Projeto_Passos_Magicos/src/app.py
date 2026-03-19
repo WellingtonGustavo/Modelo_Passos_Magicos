@@ -3,15 +3,18 @@ import pandas as pd
 import joblib
 import plotly.express as px
 from pathlib import Path
+import os
 
 st.set_page_config(page_title="Dashboard Passos Mágicos", layout="wide")
 
-CURRENT_DIR = Path(__file__).resolve().parent 
-BASE_PROJECT_DIR = CURRENT_DIR.parent 
+if Path("/mount/src/modelo_passos_magicos").exists():
+    ROOT_PATH = Path("/mount/src/modelo_passos_magicos/Projeto_Passos_Magicos")
+else:
+    ROOT_PATH = Path(__file__).resolve().parent.parent
 
-MODEL_FILE = BASE_PROJECT_DIR / "models" / "modelo_risco_rf.pkl"
-FEATURES_FILE = BASE_PROJECT_DIR / "models" / "features_modelo.pkl"
-DATA_FILE = BASE_PROJECT_DIR / "data" / "pede_consolidado_limpo.csv" 
+MODEL_FILE = ROOT_PATH / "models" / "modelo_risco_rf.pkl"
+FEATURES_FILE = ROOT_PATH / "models" / "features_modelo.pkl"
+DATA_FILE = ROOT_PATH / "data" / "pede_consolidado_limpo.csv" 
 
 @st.cache_resource
 def load_assets():
@@ -29,10 +32,12 @@ try:
     model_loaded = True
 except Exception as e:
     st.error(f"Erro ao localizar arquivos: {e}")
-    st.info(f"O app buscou nesta pasta: {BASE_PROJECT_DIR}")
+    st.info(f"O sistema buscou os dados em: {ROOT_PATH}")
+    if ROOT_PATH.parent.exists():
+        st.write("Pastas encontradas na raiz:", os.listdir(ROOT_PATH.parent))
     model_loaded = False
 
-st.title("🧙‍♂️ Inteligência Educacional - Passos Mágicos")
+st.title("Inteligência Educacional - Passos Mágicos")
 
 if model_loaded:
     aba = st.sidebar.radio("Navegação", ["Dashboard Geral", "Simulador de Risco IA"])
@@ -52,16 +57,19 @@ if model_loaded:
         m1.metric("Alunos Analisados", len(df_filt))
         m2.metric("Média INDE", round(df_filt['INDE'].mean(), 2))
         
-        # Métrica de risco baseada no seu modelo
-        risco_count = len(df_filt[df_filt['PROBABILIDADE_RISCO'] > 0.6]) if 'PROBABILIDADE_RISCO' in df_filt.columns else 0
-        m3.metric("Alunos em Risco (IA)", risco_count)
+        if 'PROBABILIDADE_RISCO' in df_filt.columns:
+            risco_count = len(df_filt[df_filt['PROBABILIDADE_RISCO'] > 0.6])
+            m3.metric("Alunos em Risco (IA)", risco_count)
+        else:
+            m3.metric("Alunos em Risco (IA)", "N/A")
 
-        st.subheader("Evolução do INDE por Pedra")
+        st.subheader("Distribuição do INDE por Pedra")
         fig = px.box(df_filt, x='Pedra', y='INDE', color='Pedra', points="all")
         st.plotly_chart(fig, use_container_width=True)
 
     elif aba == "Simulador de Risco IA":
         st.header("🔮 Simulador de Risco Preventivo")
+        st.write("Preencha os indicadores para prever a probabilidade de defasagem.")
         
         with st.form("form_ia"):
             col_a, col_b = st.columns(2)
@@ -82,6 +90,7 @@ if model_loaded:
                     'IPV': ipv, 'PEDRA_NUM': pedra_map[pedra_sel], 
                     'PV_BIN': 1 if pv_sel == "Sim" else 0
                 }])
+                
                 input_data = input_data[features_treino]
                 prob = modelo.predict_proba(input_data)[0][1]
                 
