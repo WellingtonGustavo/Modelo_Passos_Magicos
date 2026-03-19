@@ -4,7 +4,7 @@ import joblib
 import plotly.express as px
 from pathlib import Path
 
-t.set_page_config(page_title="Dashboard Passos Mágicos", layout="wide")
+st.set_page_config(page_title="Dashboard Passos Mágicos", layout="wide")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
