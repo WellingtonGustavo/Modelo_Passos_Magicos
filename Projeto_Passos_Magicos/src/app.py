@@ -5,33 +5,22 @@ import plotly.express as px
 from pathlib import Path
 import os
 
+# --- CONFIGURAÇÃO DE PÁGINA ---
 st.set_page_config(page_title="Dashboard Passos Mágicos", layout="wide")
 
-possible_paths = [
-    Path("/mount/src/modelo_passos_magicos/Projeto_Passos_Magicos"),
-    Path(__file__).resolve().parent.parent,
-    Path.cwd() / "Projeto_Passos_Magicos"
-]
+# --- AJUSTE DE CAMINHOS (RELATIVO AO APP.PY) ---
+# O arquivo está em src/app.py. O .parent sobe para src/, o segundo .parent sobe para Projeto_Passos_Magicos/
+BASE_DIR = Path(__file__).resolve().parent.parent
 
-ROOT_PATH = None
-for p in possible_paths:
-    if (p / "data").exists():
-        ROOT_PATH = p
-        break
+# Definição dos caminhos baseada na sua estrutura de pastas
+MODEL_FILE = BASE_DIR / "models" / "modelo_risco_rf.pkl"
+FEATURES_FILE = BASE_DIR / "models" / "features_modelo.pkl"
+DATA_FILE = BASE_DIR / "data" / "pede_consolidado_limpo.csv"
 
-if ROOT_PATH is None:
-    st.error("❌ Erro Crítico: Pasta de dados não encontrada.")
-    st.info(f"O sistema verificou os seguintes locais: {[str(p) for p in possible_paths]}")
-    if Path("/mount/src/modelo_passos_magicos").exists():
-        st.write("Conteúdo da raiz do projeto:", os.listdir("/mount/src/modelo_passos_magicos/"))
-    st.stop()
-
-MODEL_FILE = ROOT_PATH / "models" / "modelo_risco_rf.pkl"
-FEATURES_FILE = ROOT_PATH / "models" / "features_modelo.pkl"
-DATA_FILE = ROOT_PATH / "data" / "pede_consolidado_limpo.csv" 
-
+# --- FUNÇÕES DE CARREGAMENTO ---
 @st.cache_resource
 def load_assets():
+    # Carrega o modelo e a lista de colunas usadas no treino
     model = joblib.load(MODEL_FILE)
     features = joblib.load(FEATURES_FILE)
     return model, features
@@ -40,14 +29,20 @@ def load_assets():
 def load_data():
     return pd.read_csv(DATA_FILE)
 
+# --- INICIALIZAÇÃO ---
 try:
     modelo, features_treino = load_assets()
     df = load_data()
     model_loaded = True
 except Exception as e:
-    st.error(f"Erro ao carregar arquivos específicos: {e}")
+    st.error(f"Erro ao carregar arquivos: {e}")
+    st.info(f"Diretório base identificado: {BASE_DIR}")
+    # Ajuda a entender o que o Streamlit vê no momento do erro
+    if BASE_DIR.exists():
+        st.write("Conteúdo detectado na pasta do projeto:", os.listdir(BASE_DIR))
     model_loaded = False
 
+# --- INTERFACE ---
 st.title("🧙‍♂️ Inteligência Educacional - Passos Mágicos")
 
 if model_loaded:
@@ -56,6 +51,7 @@ if model_loaded:
     if aba == "Dashboard Geral":
         st.header("📊 Visão Geral dos Indicadores")
         
+        # Filtros baseados no seu CSV
         col_f1, col_f2 = st.columns(2)
         with col_f1:
             anos = st.multiselect("Anos Letivos", df['ANO_LETIVO'].unique(), default=df['ANO_LETIVO'].unique())
@@ -64,10 +60,12 @@ if model_loaded:
 
         df_filt = df[(df['ANO_LETIVO'].isin(anos)) & (df['Pedra'].isin(pedras))]
 
+        # Métricas
         m1, m2, m3 = st.columns(3)
         m1.metric("Alunos Analisados", len(df_filt))
         m2.metric("Média INDE", round(df_filt['INDE'].mean(), 2))
         
+        # Verifica se a coluna de probabilidade existe para mostrar a métrica de risco
         if 'PROBABILIDADE_RISCO' in df_filt.columns:
             risco_count = len(df_filt[df_filt['PROBABILIDADE_RISCO'] > 0.6])
             m3.metric("Alunos em Risco (IA)", risco_count)
@@ -80,7 +78,6 @@ if model_loaded:
 
     elif aba == "Simulador de Risco IA":
         st.header("🔮 Simulador de Risco Preventivo")
-        st.write("Insira os indicadores para calcular a probabilidade de defasagem.")
         
         with st.form("form_ia"):
             col_a, col_b = st.columns(2)
@@ -96,12 +93,14 @@ if model_loaded:
                 pv_sel = st.selectbox("Já atingiu PV?", ["Sim", "Não"])
 
             if st.form_submit_button("Calcular Risco"):
+                # Prepara dados para predição
                 input_data = pd.DataFrame([{
                     'IAA': iaa, 'IEG': ieg, 'IPS': ips, 'IPP': ipp, 
                     'IPV': ipv, 'PEDRA_NUM': pedra_map[pedra_sel], 
                     'PV_BIN': 1 if pv_sel == "Sim" else 0
                 }])
                 
+                # Garante que as colunas estejam na ordem que o modelo exige
                 input_data = input_data[features_treino]
                 prob = modelo.predict_proba(input_data)[0][1]
                 
